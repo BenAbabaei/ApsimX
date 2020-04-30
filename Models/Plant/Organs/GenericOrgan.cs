@@ -15,6 +15,8 @@
     /// This organ is simulated using a GenericOrgan type.  It is parameterised to calculate the growth, senescence, and detachment of any organ that does not have specific functions.
     /// </summary>
     [Serializable]
+    [ViewName("UserInterface.Views.GridView")]
+    [PresenterName("UserInterface.Presenters.PropertyPresenter")]
     [ValidParent(ParentType = typeof(Plant))]
     public class GenericOrgan : Model, IOrgan, IArbitration, ICustomDocumentation, IOrganDamage
     {
@@ -72,15 +74,20 @@
         [Units("g/m2/d")]
         private BiomassDemand dmDemands = null;
 
+        /// <summary>Factors for assigning priority to DM demands</summary>
+        [Link(IsOptional = true, Type = LinkType.Child, ByName = true)]
+        [Units("g/m2/d")]
+        private BiomassDemand dmDemandPriorityFactors = null;
+
         /// <summary>The N demand function</summary>
         [Link(Type = LinkType.Child, ByName = true)]
         [Units("g/m2/d")]
         private BiomassDemand nDemands = null;
 
-        /// <summary>The initial biomass dry matter weight</summary>
+        /// <summary>Wt in each pool when plant is initialised</summary>
         [Link(Type = LinkType.Child, ByName = true)]
-        [Units("g/m2")]
-        private IFunction initialWtFunction = null;
+        [Units("g/plant")]
+        public BiomassDemand InitialWt = null;
 
         /// <summary>The initial N Concentration</summary>
         [Link(Type = LinkType.Child, ByName = true, IsOptional = true)]
@@ -143,6 +150,9 @@
         /// <summary>The dry matter demand</summary>
         public BiomassPoolType DMDemand { get;  set; }
 
+        /// <summary>The dry matter demand</summary>
+        public BiomassPoolType DMDemandPriorityFactor { get; set; }
+
         /// <summary>Structural nitrogen demand</summary>
         public BiomassPoolType NDemand { get;  set; }
 
@@ -157,7 +167,8 @@
         }
 
         /// <summary>Gets a value indicating whether the biomass is above ground or not</summary>
-        public bool IsAboveGround { get { return true; } }
+        [Description("Is organ above ground?")]
+        public bool IsAboveGround { get; set; } = true;
 
         /// <summary>The live biomass</summary>
         [XmlIgnore]
@@ -302,6 +313,19 @@
                 DMDemand.Storage = 0;
                 DMDemand.Metabolic = 0;
             }
+
+            if (dmDemandPriorityFactors != null)
+            {
+                DMDemandPriorityFactor.Structural = dmDemandPriorityFactors.Structural.Value();
+                DMDemandPriorityFactor.Metabolic = dmDemandPriorityFactors.Metabolic.Value();
+                DMDemandPriorityFactor.Storage = dmDemandPriorityFactors.Storage.Value();
+            }
+            else // Priorities will be equal
+            {
+                DMDemandPriorityFactor.Structural = 1.0;
+                DMDemandPriorityFactor.Metabolic = 1.0;
+                DMDemandPriorityFactor.Storage = 1.0;
+            }
         }
 
         /// <summary>Calculate and return the nitrogen demand (g/m2)</summary>
@@ -435,6 +459,7 @@
             Dead = new Biomass();
             StartLive = new Biomass();
             DMDemand = new BiomassPoolType();
+            DMDemandPriorityFactor = new BiomassPoolType();
             NDemand = new BiomassPoolType();
             DMSupply = new BiomassSupplyType();
             NSupply = new BiomassSupplyType();
@@ -465,8 +490,9 @@
             {
                 Clear();
                 ClearBiomassFlows();
-                Live.StructuralWt = initialWtFunction.Value();
-                Live.StorageWt = 0.0;
+                Live.StructuralWt = InitialWt.Structural.Value();
+                Live.MetabolicWt = InitialWt.Metabolic.Value();
+                Live.StorageWt = InitialWt.Storage.Value();
                 if(initialNConcFunction != null)
                 {
                     Live.StructuralN = Live.StructuralWt * initialNConcFunction.Value();
@@ -474,7 +500,7 @@
                 else
                 {
                     Live.StructuralN = Live.StructuralWt * minimumNConc.Value();
-                    Live.StorageN = (initialWtFunction.Value() * maximumNConc.Value()) - Live.StructuralN;
+                    Live.StorageN = (Live.Wt * maximumNConc.Value()) - Live.StructuralN;
                 }
             }
         }

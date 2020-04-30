@@ -1,9 +1,3 @@
-// -----------------------------------------------------------------------
-// <copyright file="graztype.cs" company="CSIRO">
-//      CSIRO Agriculture & Food
-// </copyright>
-// -----------------------------------------------------------------------
-
 namespace Models.GrazPlan
 {
     using System;
@@ -11,6 +5,28 @@ namespace Models.GrazPlan
     using System.Reflection;
     using System.Runtime.Serialization;
     using System.Runtime.Serialization.Formatters.Binary;
+
+    /// <summary>
+    /// This is nearly the same information as "GrazType.ReproType" (below), but is intended for
+    /// use in the GUI with Buy events, where we don't really want to include the
+    /// pregnancy state of females. I'm placing it outside the GrazType namespace
+    /// for simplicity when entering values in the GUI.
+    /// </summary>
+    public enum ReproductiveType
+    {
+        /// <summary>
+        /// female
+        /// </summary>
+        Female,
+        /// <summary>
+        /// male
+        /// </summary>
+        Male,
+        /// <summary>
+        /// castrated male
+        /// </summary>
+        Castrate
+    }
 
     /// <summary>
     /// Container for many GrazPlan constants

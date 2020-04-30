@@ -1,27 +1,27 @@
-﻿// -----------------------------------------------------------------------
-// <copyright file="stock_intf.cs" company="CSIRO">
-// CSIRO Agriculture & Food
-// </copyright>
-// -----------------------------------------------------------------------
-
-namespace Models.GrazPlan
+﻿namespace Models.GrazPlan
 {
     using System;
     using System.Collections.Generic;
     using System.Globalization;
+    using System.IO;
     using System.Linq;
+    using APSIM.Shared.Utilities;
+    using Models.Core;
+    using Models.Core.ApsimFile;
+    using Models.PMF;
+    using Newtonsoft.Json.Linq;
     using StdUnits;
 
     /// <summary>
-    /// Information required to initialise a single animal group, as a record.      
-    /// N.B. the YoungWt and YoungGFW fields may be set to MISSING, in which case    
-    ///      TStockList will estimate defaults.                                       
+    /// Information required to initialise a single animal group
+    /// The YoungWt and YoungGFW fields may be set to MISSING, in which case    
+    /// TStockList will estimate defaults.                                       
     /// </summary>
     [Serializable]
     public struct AnimalInits
     {
         /// <summary>
-        /// Genotype name
+        /// Genotype of this group of animals. Must match the GenotypeName field of an element of the Genotypes property.
         /// </summary>
         public string Genotype;
 
@@ -32,67 +32,83 @@ namespace Models.GrazPlan
 
         /// <summary>
         /// Sex of animals
+        /// Castrated, Male, Empty, EarlyPreg, LatePreg
         /// </summary>
         public GrazType.ReproType Sex;
 
         /// <summary>
         /// Age in days
         /// </summary>
+        [Units("d")]
         public int AgeDays;
 
         /// <summary>
-        /// Weight of animals
+        /// Unfasted live weight of the animals.
         /// </summary>
+        [Units("kg")]
         public double Weight;
 
         /// <summary>
-        /// Maximum previous weight
+        /// Highest weight recorded to date.
         /// </summary>
+        [Units("kg")]
         public double MaxPrevWt;
 
         /// <summary>
-        /// Fleece weight
+        /// Greasy fleece weight of the animals.
         /// </summary>
+        [Units("kg")]
         public double FleeceWt;
 
         /// <summary>
-        /// Fleece fibre diameter 
+        /// Average wool fibre diameter of the animals.
         /// </summary>
+        [Units("u")]
         public double FibreDiam;
 
         /// <summary>
-        /// Mated to animal
+        /// Genotype of the bulls/rams to 
+        /// which pregnant or lactating animals were mated. 
+        /// Must match the name field of an element of the Genotypes property.
         /// </summary>
         public string MatedTo;
 
         /// <summary>
         /// Days pregnant
+        /// Zero denotes not pregnant; 1 or more denotes the time since conception. 
+        /// Only meaningful for cows/ewes.
         /// </summary>
+        [Units("d")]
         public int Pregnant;
 
         /// <summary>
         /// Days lactating
+        /// Zero denotes not lactating; 1 or more denotes the time since parturition. 
+        /// Only meaningful for cows/ewes.
         /// </summary>
+        [Units("d")]
         public int Lactating;
 
         /// <summary>
-        /// Number of foetuses
+        /// Number of foetuses or suckling lambs. Only meaningful for females with Pregnant > 0.
         /// </summary>
         public int NumFoetuses;
 
         /// <summary>
-        /// Number of suckling young
+        /// Number of suckling young. Only meaningful for cows with Lactating > 0.
         /// </summary>
         public int NumSuckling;
 
         /// <summary>
-        /// Greasy fleece weight of young
+        /// Greasy fleece weight of suckling lambs. Only meaningful for ewes with Lactating > 0.
         /// </summary>
+        [Units("kg")]
         public double YoungGFW;
 
         /// <summary>
-        /// Weight of young
+        /// Unfasted live weight of suckling calves/lambs. Only meaningful for cows/ewes with lactating > 0.
         /// </summary>
+        [Units("kg")]
         public double YoungWt;
 
         /// <summary>
@@ -101,17 +117,17 @@ namespace Models.GrazPlan
         public double BirthCS;
 
         /// <summary>
-        /// Paddock location
+        /// Paddock occupied by the animals.
         /// </summary>
         public string Paddock;
 
         /// <summary>
-        /// Tag of animal group
+        /// Initial tag value for the animal group.
         /// </summary>
         public int Tag;
 
         /// <summary>
-        /// Priority level
+        /// Priority accorded the animals in the Draft event
         /// </summary>
         public int Priority;
     }
@@ -288,72 +304,6 @@ namespace Models.GrazPlan
     }
 
     /// <summary>
-    /// Used to bundle animal genotype information so it can be passed to            
-    /// TStockList.Create.                                                           
-    /// N.B. All the numeric fields may be set to DMISSING, and MaleBreedName may     
-    ///      be set to the null string, in which case the TStockList class will      
-    ///      provide a default.                                                      
-    /// </summary>
-    [Serializable]
-    public class SingleGenotypeInits
-    {
-        /// <summary>
-        /// Gets or sets the death rates
-        /// </summary>
-        public double[] DeathRate = new double[2];
-
-        /// <summary>
-        /// Conception rates
-        /// </summary>
-        public double[] Conceptions = new double[4];    // array[1..3]
-
-        /// <summary>
-        /// Gets or sets the genotype name
-        /// </summary>
-        public string GenotypeName { get; set; }
-
-        /// <summary>
-        /// Gets or sets the dam breed name
-        /// </summary>
-        public string DamBreed { get; set; }
-
-        /// <summary>
-        /// Gets or sets the sire breed name
-        /// </summary>
-        public string SireBreed { get; set; }
-
-        /// <summary>
-        /// Gets or sets the generation, 1 = first cross, 2 = second cross etc
-        /// </summary>
-        public int Generation { get; set; }
-
-        /// <summary>
-        /// Gets or sets the standard reference weight
-        /// </summary>
-        public double SRW { get; set; }
-
-        /// <summary>
-        /// Gets or sets the potential fleece weight
-        /// </summary>
-        public double PotFleeceWt { get; set; }
-
-        /// <summary>
-        /// Gets or sets the maximum wool fibre diameter
-        /// </summary>
-        public double MaxFibreDiam { get; set; }
-
-        /// <summary>
-        /// Gets or sets the fleece yield
-        /// </summary>
-        public double FleeceYield { get; set; }
-
-        /// <summary>
-        /// Gets or sets the peak milk production
-        /// </summary>
-        public double PeakMilk { get; set; }
-    }
-
-    /// <summary>
     /// The container for stock
     /// </summary>
     [Serializable]
@@ -454,6 +404,11 @@ namespace Models.GrazPlan
     public class StockList
     {
         /// <summary>
+        /// The parent stock model.
+        /// </summary>
+        private Stock parentStockModel = null;
+
+        /// <summary>
         /// False flag
         /// </summary>
         private const int FALSE = 0;
@@ -484,14 +439,9 @@ namespace Models.GrazPlan
         private double[] MAXSRW = { 120.0, 1000.0 };
 
         /// <summary>
-        /// The animal parameter file name
-        /// </summary>
-        private string paramFile;
-
-        /// <summary>
         /// Base parameters
         /// </summary>
-        private AnimalParamSet baseParams;
+        private AnimalParamSet baseParams = null;
 
         /// <summary>
         /// Set of genotype parameters
@@ -524,24 +474,18 @@ namespace Models.GrazPlan
         private ForageProviders forageProviders;
 
         /// <summary>
-        /// Gets or sets the ref to the hosts random number generator
-        /// </summary>
-        public MyRandom RandFactory { get; set; }
-
-        /// <summary>
         /// Gets or sets the start of the simulation
         /// </summary>
         public int StartRun { get; set; }
 
         /// <summary>
-        /// Gets or sets the parameter file name
+        /// Gets the base parameter set for this instance
+        /// specified by the ParamFile
         /// </summary>
-        public string ParamFile
+        public AnimalParamSet BaseParams
         {
-            get { return this.paramFile; }
-            set { this.SetParamFile(value); }
+            get { return baseParams; }
         }
-
         /// <summary>
         /// Gets the list of paddocks
         /// </summary>
@@ -600,17 +544,6 @@ namespace Models.GrazPlan
             result.CurrLocale = GrazLocale.DefaultLocale();
 
             return result;
-        }
-
-        /// <summary>
-        /// Set the file name
-        /// </summary>
-        /// <param name="fileName">The parameter file name</param>
-        private void SetParamFile(string fileName)
-        {
-            this.baseParams = null;
-            this.baseParams = StockList.MakeParamSet(fileName);
-            this.paramFile = fileName;
         }
 
         /// <summary>
@@ -1416,12 +1349,11 @@ namespace Models.GrazPlan
         /// <summary>
         /// Create a TStockList
         /// </summary>
-        /// <param name="randomFactory">The random number container</param>
-        public StockList(MyRandom randomFactory)
+        /// <param name="stockModel">The parent stock model.</param>
+        public StockList(Stock stockModel)
         {
+            this.parentStockModel = stockModel;
             this.StartRun = 0;
-            this.RandFactory = randomFactory;                                               // store the ptr
-            this.SetParamFile(string.Empty);                                                // Creates a default FBaseParams         
             Array.Resize(ref this.stock, 1);                                          // Set aside temporary storage           
             this.paddockList = new PaddockList();
             this.paddockList.Add(-1, string.Empty);                                      // The "null" paddock is added here      
@@ -1431,20 +1363,6 @@ namespace Models.GrazPlan
             this.grazingList = new GrazingList();
         }
 
-        /// <summary>
-        /// Add more genotypes
-        /// </summary>
-        /// <param name="breedInits">Breed init values</param>
-        public void AddGenotypes(SingleGenotypeInits[] breedInits)
-        {
-            int idx, jdx;
-
-            idx = this.genotypeParams.Length;
-            Array.Resize(ref this.genotypeParams, idx + breedInits.Length);
-            for (jdx = 0; jdx <= breedInits.Length - 1; jdx++)
-                this.genotypeParams[idx + jdx] = this.ParamsFromGenotypeInits(this.baseParams, breedInits, jdx);
-        }
-        
         /// <summary>
         /// Get the genotype count
         /// </summary>
@@ -1488,7 +1406,11 @@ namespace Models.GrazPlan
                     result = this.genotypeParams[idx];
                 else
                 {
-                    srcParamSet = this.baseParams.Match(genoName);
+                    srcParamSet = parentStockModel.Genotypes.Get(genoName).Parameters;
+                    srcParamSet.EnglishName = genoName;
+                    srcParamSet.DeriveParams();
+                    //srcParamSet.Initialise();
+
                     if (srcParamSet != null)
                     {
                         result = new AnimalParamSet(null, srcParamSet);
@@ -1549,7 +1471,7 @@ namespace Models.GrazPlan
                                         animalInits.AgeDays,
                                         animalInits.Weight,
                                         animalInits.FleeceWt,
-                                        this.RandFactory);
+                                        parentStockModel.randFactory);
             if (this.IsGiven(animalInits.MaxPrevWt))
                 newGroup.MaxPrevWeight = animalInits.MaxPrevWt;
             if (this.IsGiven(animalInits.FibreDiam))
@@ -1590,6 +1512,19 @@ namespace Models.GrazPlan
 
             return this.Add(newGroup, paddock, animalInits.Tag, animalInits.Priority);
         }
+
+        ///// <summary>Add a group of animals to the list.</summary>
+        ///// <param name="newGroup">New animal group.</param>
+        ///// <returns>The index of the new group in the stock array. 0 based.</returns>
+        //public int Add(AnimalGroup newGroup)
+        //{
+        //    newGroup.InitialiseFromParameters();
+        //    var paddock = this.paddockList.ByName(newGroup.PaddockName.ToLower());
+        //    if (paddock == null)
+        //        paddock = this.paddockList.ByIndex(0);
+
+        //    return this.Add(newGroup, paddock, newGroup.Tag, newGroup.Priority);
+        //}
 
         /// <summary>
         ///  * N.B. posn is 1-offset; stock list is effectively also a 1-offset array        
@@ -1660,6 +1595,11 @@ namespace Models.GrazPlan
         {
             return this.GetAt(posn);
         }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public List<AnimalGroup> Animals {  get { return Animals; } }
 
         /// <summary>
         /// posIdx is 1-offset; so is stock                                              
@@ -2580,7 +2520,7 @@ namespace Models.GrazPlan
                                             animalInfo.AgeDays,                       // Preg  field.                        
                                             liveWeight,
                                             animalInfo.GFW,
-                                            this.RandFactory);
+                                            parentStockModel.randFactory);
 
                 // Adjust the condition score if it has been given
                 if ((animalInfo.CondScore > 0.0) && (animalInfo.LiveWt > 0.0))        
@@ -3307,7 +3247,7 @@ namespace Models.GrazPlan
             if (this.Count() > 0)
                 tempAnimals = this.At(1).Copy();
             else
-                tempAnimals = new AnimalGroup(this.GetGenotype("Medium Merino"), GrazType.ReproType.Empty, 1, 365 * 4, 50.0, 0.0, this.RandFactory);
+                tempAnimals = new AnimalGroup(this.GetGenotype("Medium Merino"), GrazType.ReproType.Empty, 1, 365 * 4, 50.0, 0.0, parentStockModel.randFactory);
             for (paddIdx = 0; paddIdx <= this.Paddocks.Count() - 1; paddIdx++)
                 paddockRank[paddIdx] = this.GetPaddockRank(this.Paddocks.ByIndex(paddIdx), tempAnimals);
 
@@ -3326,68 +3266,6 @@ namespace Models.GrazPlan
                 }
                 paddockList.Add(this.Paddocks.ByIndex(bestPadd).Name);
                 paddockRank[bestPadd] = -999.9;
-            }
-        }
-
-        /// <summary>
-        /// Convert the Stock geno object to SingleGenotypeInits
-        /// </summary>
-        /// <param name="genoValue">A genotype value</param>
-        /// <param name="genoInits">Genotype initial value</param>
-        public void Value2GenotypeInits(StockGeno genoValue, ref SingleGenotypeInits genoInits)
-        {
-            genoInits.GenotypeName = genoValue.Name;
-            genoInits.DamBreed = genoValue.DamBreed;
-            genoInits.SireBreed = genoValue.SireBreed;
-            genoInits.Generation = genoValue.Generation;
-            genoInits.SRW = genoValue.SRW;
-            genoInits.PotFleeceWt = genoValue.RefFleeceWt;
-            genoInits.MaxFibreDiam = genoValue.MaxFibreDiam;
-            genoInits.FleeceYield = genoValue.FleeceYield;
-            genoInits.PeakMilk = genoValue.PeakMilk;
-            genoInits.DeathRate[FALSE] = genoValue.DeathRate;
-            genoInits.DeathRate[TRUE] = genoValue.WnrDeathRate;
-
-            // Catch weaner death rates that are missing from v1.3 input data...
-            if (genoInits.DeathRate[TRUE] == 0.0)
-                genoInits.DeathRate[TRUE] = genoInits.DeathRate[FALSE];
-
-            int i;
-            for (i = 0; i < genoInits.Conceptions.Length; i++)
-                genoInits.Conceptions[i] = 0.0;
-            if (genoValue.Conception != null)
-            {
-                for (i = 0; i < genoValue.Conception.Length; i++)
-                    genoInits.Conceptions[i] = genoValue.Conception[i]; // Conceptions[1..
-            }
-        }
-
-        /// <summary>
-        /// Convert the inits into a StockGeno array
-        /// </summary>
-        /// <param name="genoInits">The array of genotype inits</param>
-        /// <param name="genoValues">The returned array of StockGeno</param>
-        public void GenotypeInits2Value(SingleGenotypeInits[] genoInits, ref StockGeno[] genoValues)
-        {
-            genoValues = new StockGeno[genoInits.Length];
-            for (int idx = 0; idx < genoInits.Length; idx++)
-            {
-                genoValues[idx] = new StockGeno();
-                genoValues[idx].Name = genoInits[idx].GenotypeName;
-                genoValues[idx].DamBreed = genoInits[idx].DamBreed;
-                genoValues[idx].SireBreed = genoInits[idx].SireBreed;
-                genoValues[idx].Generation = genoInits[idx].Generation;
-                genoValues[idx].SRW = genoInits[idx].SRW;
-                genoValues[idx].RefFleeceWt = genoInits[idx].PotFleeceWt;
-                genoValues[idx].MaxFibreDiam = genoInits[idx].MaxFibreDiam;
-                genoValues[idx].FleeceYield = genoInits[idx].FleeceYield;
-                genoValues[idx].PeakMilk = genoInits[idx].PeakMilk;
-                genoValues[idx].DeathRate = genoInits[idx].DeathRate[FALSE];
-                genoValues[idx].WnrDeathRate = genoInits[idx].DeathRate[TRUE];
-
-                // genoValues[idx].Conception = new double[4];
-                for (int i = 0; i < genoInits[idx].Conceptions.Length; i++)
-                    genoValues[idx].Conception[i] = genoInits[idx].Conceptions[i]; // Conceptions[1..
             }
         }
 
@@ -3419,125 +3297,28 @@ namespace Models.GrazPlan
         }
 
         /// <summary>
-        /// Converts a keyword to a ReproType.  Allows plurals in the keyword. 
-        /// N.B. The routine is animal-insensitive, i.e. if 'COW' is passed in,      
-        ///      Empty will be returned regardless of whether sheep or cattle are    
-        ///      under consideration                                                 
+        /// Converts a ReproductiveType to a ReproType. 
         /// </summary>
-        /// <param name="keyword">The keyword to match</param>
+        /// <param name="reproType">The keyword to match</param>
         /// <param name="repro">The reproduction record</param>
         /// <returns>True if the keyword is found</returns>
-        private bool ParseRepro(string keyword, ref GrazType.ReproType repro)
+        private bool ParseRepro(ReproductiveType reproType, ref GrazType.ReproType repro)
         {
-            ReproRecord[] sexKeywords = new ReproRecord[8] 
+            switch (reproType)
             {
-                        new ReproRecord(name: "ram",    repro: GrazType.ReproType.Male),
-                        new ReproRecord(name: "crypto", repro: GrazType.ReproType.Male),
-                        new ReproRecord(name: "wether", repro: GrazType.ReproType.Castrated),
-                        new ReproRecord(name: "ewe",    repro: GrazType.ReproType.Empty),
-                        new ReproRecord(name: "bull",   repro: GrazType.ReproType.Male),
-                        new ReproRecord(name: "steer",  repro: GrazType.ReproType.Castrated),
-                        new ReproRecord(name: "heifer", repro: GrazType.ReproType.Empty),
-                        new ReproRecord(name: "cow",    repro: GrazType.ReproType.Empty)
-            };
-
-            int idx;
-
-            bool result = true;
-            keyword = keyword.ToLower().Trim();
-            if ((keyword != string.Empty) && (keyword[keyword.Length - 1] == 's'))                 // Plurals are allowed                   
-                keyword = keyword.Substring(0, keyword.Length - 1);
-            idx = 0;
-            while ((idx <= 7) && (keyword != sexKeywords[idx].Name))
-                idx++;
-            if (idx <= 7)
-                repro = sexKeywords[idx].Repro;
-            else
-                repro = GrazType.ReproType.Castrated;
-            if ((idx > 7) && (keyword.Length > 0))
-                result = false;
-
-            return result;
+                case ReproductiveType.Female:
+                    repro = GrazType.ReproType.Empty;
+                    return true;
+                case ReproductiveType.Male:
+                    repro = GrazType.ReproType.Male;
+                    return true;
+                case ReproductiveType.Castrate:
+                    repro = GrazType.ReproType.Castrated;
+                    return true;
+            }
+            return false;
         }
-        
-        /// <summary>
-        /// Convert sheep data to an animal init
-        /// </summary>
-        /// <param name="sheepValue">The sheep data</param>
-        /// <param name="animalInit">The animal init</param>
-        public void SheepValue2AnimalInits(SheepInit sheepValue, ref AnimalInits animalInit)
-        {
-            animalInit = new AnimalInits();
-
-            animalInit.Genotype = sheepValue.Genotype;
-            animalInit.Number = sheepValue.Number;
-            if (sheepValue.Sex.Length > 0)
-                this.ParseRepro(sheepValue.Sex.ToLower(), ref animalInit.Sex);
-            else
-                animalInit.Sex = GrazType.ReproType.Castrated;
-            animalInit.AgeDays = Convert.ToInt32(sheepValue.Age, CultureInfo.InvariantCulture);
-            animalInit.Weight = sheepValue.Weight;
-            animalInit.MaxPrevWt = sheepValue.MaxPrevWt;
-            animalInit.FleeceWt = sheepValue.FleeceWt;
-            animalInit.FibreDiam = sheepValue.FibreDiam;
-            animalInit.MatedTo = sheepValue.MatedTo;
-            animalInit.Pregnant = sheepValue.Pregnant;
-            animalInit.Lactating = sheepValue.Lactating;
-
-            if (animalInit.Pregnant > 0)
-            {
-                animalInit.NumFoetuses = sheepValue.NumYoung;
-            }
-
-            if (animalInit.Lactating > 0)
-            {
-                animalInit.NumSuckling = sheepValue.NumYoung;
-                animalInit.BirthCS = sheepValue.BirthCS;
-                animalInit.YoungWt = sheepValue.LambWt;
-                animalInit.YoungGFW = sheepValue.LambFleeceWt;
-            }
-            animalInit.Paddock = sheepValue.Paddock;
-            animalInit.Tag = sheepValue.Tag;
-            animalInit.Priority = sheepValue.Priority;
-        }
-
-        /// <summary>
-        /// Conver the cattle value to an animal init
-        /// </summary>
-        /// <param name="cattleValue">The cattle information</param>
-        /// <param name="animalInit">The animal init</param>
-        public void CattleValue2AnimalInits(CattleInit cattleValue, ref AnimalInits animalInit)
-        {
-            animalInit = new AnimalInits();
-
-            animalInit.Genotype = cattleValue.Genotype;
-            animalInit.Number = cattleValue.Number;
-            if (cattleValue.Sex.Length > 0)
-                this.ParseRepro(cattleValue.Sex.ToLower(), ref animalInit.Sex);
-            else
-                animalInit.Sex = GrazType.ReproType.Castrated;
-            animalInit.AgeDays = Convert.ToInt32(cattleValue.Age, CultureInfo.InvariantCulture);
-            animalInit.Weight = cattleValue.Weight;
-            animalInit.MaxPrevWt = cattleValue.MaxPrevWt;
-            animalInit.MatedTo = cattleValue.MatedTo;
-            animalInit.Pregnant = cattleValue.Pregnant;
-            animalInit.Lactating = cattleValue.Lactating;
-            if (animalInit.Pregnant > 0)
-            {
-                animalInit.NumFoetuses = cattleValue.NumFoetuses;
-            }
-
-            if (animalInit.Lactating > 0)
-            {
-                animalInit.NumSuckling = cattleValue.NumSuckling;
-                animalInit.BirthCS = cattleValue.BirthCS;
-                animalInit.YoungWt = cattleValue.CalfWt;
-            }
-            animalInit.Paddock = cattleValue.Paddock;
-            animalInit.Tag = cattleValue.Tag;
-            animalInit.Priority = cattleValue.Priority;
-        }
-        
+                
         /// <summary>
         /// These functions return the number of days from the first date to the  
         /// second.  PosInterval assumes that its arguments are days-of-year, i.e.    
@@ -3615,29 +3396,6 @@ namespace Models.GrazPlan
         private const int MAX_CRITERIA = 1;
         private const int DRAFT_MOVE = 0;
         private string[] CRITERIA = new string[MAX_CRITERIA] { "draft" };   // used in radiogroup on dialog
-
-        /// <summary>
-        /// Initialises a SingleGenotypeInits so that most parameters revert to their         
-        /// defaults.  Can't be done as a constant because MISSING is a typed value      
-        /// </summary>
-        /// <param name="genotype">Returns the empty genotype</param>
-        public void MakeEmptyGenotype(ref SingleGenotypeInits genotype)
-        {
-            genotype.GenotypeName = "Medium Merino";
-            genotype.DamBreed = string.Empty;
-            genotype.SireBreed = string.Empty;
-            genotype.Generation = 0;
-            genotype.SRW = StdMath.DMISSING;
-            genotype.PotFleeceWt = StdMath.DMISSING;
-            genotype.MaxFibreDiam = StdMath.DMISSING;
-            genotype.FleeceYield = StdMath.DMISSING;
-            genotype.PeakMilk = StdMath.DMISSING;
-            genotype.DeathRate[FALSE] = StdMath.DMISSING;
-            genotype.DeathRate[TRUE] = StdMath.DMISSING;
-            genotype.Conceptions[1] = StdMath.DMISSING;
-            genotype.Conceptions[2] = 0.0;
-            genotype.Conceptions[3] = 0.0;
-        }
 
         /// <summary>
         /// Utility routines for manipulating the DM_Pool type.  AddDMPool adds the   
@@ -3767,81 +3525,6 @@ namespace Models.GrazPlan
                     this.Add(animalList.At(idx), paddInfo, tagNo, priority);
                     animalList.SetAt(idx, null);                           // Detach the animal group from the TAnimalList                              
                 }
-        }
-
-        /// <summary>
-        /// Find the genotype
-        /// </summary>
-        /// <param name="mainParams">The animal parameters</param>
-        /// <param name="genoInits">Genotype inits</param>
-        /// <param name="searchName">The name to search</param>
-        /// <param name="searchBefore"></param>
-        /// <returns>The animal parametes</returns>
-        private AnimalParamSet FindGenotype(AnimalParamSet mainParams, SingleGenotypeInits[] genoInits, string searchName, int searchBefore)
-        {
-            AnimalParamSet result;
-            AnimalParamSet foundParams;
-            int idx;
-
-            idx = 0;
-            while ((idx < searchBefore) && (searchName.ToLower() != genoInits[idx].GenotypeName.ToLower()))
-                idx++;
-            if (idx < searchBefore)
-                result = this.ParamsFromGenotypeInits(mainParams, genoInits, idx);
-            else
-            {
-                foundParams = mainParams.Match(searchName);
-                if (foundParams != null)
-                    result = new AnimalParamSet(null, foundParams);
-                else
-                    throw new Exception("Breed name \"" + searchName + "\" not recognised");
-            }
-            return result;
-        }
-
-        /// <summary>
-        /// Always makes a copy
-        /// </summary>
-        /// <param name="mainParams">The animal parameters</param>
-        /// <param name="genoInits">Genotype inits</param>
-        /// <param name="genoIdx">The genoptype index</param>
-        /// <returns>The animal parametes</returns>
-        public AnimalParamSet ParamsFromGenotypeInits(AnimalParamSet mainParams, SingleGenotypeInits[] genoInits, int genoIdx)
-        {
-            AnimalParamSet result;
-
-            if (genoInits[genoIdx].DamBreed == string.Empty)
-                result = this.FindGenotype(mainParams, genoInits, genoInits[genoIdx].GenotypeName, 0);
-            else if (genoInits[genoIdx].Generation == 0)
-                result = this.FindGenotype(mainParams, genoInits, genoInits[genoIdx].DamBreed, 0);
-            else
-                result = AnimalParamSet.CreateFactory(
-                                                    genoInits[genoIdx].GenotypeName,
-                                                    this.FindGenotype(mainParams, genoInits, genoInits[genoIdx].DamBreed, genoIdx),
-                                                    this.FindGenotype(mainParams, genoInits, genoInits[genoIdx].SireBreed, genoIdx));
-
-            result.Name = genoInits[genoIdx].GenotypeName;
-
-            if (this.IsGiven(genoInits[genoIdx].SRW))
-                result.BreedSRW = genoInits[genoIdx].SRW;
-            if (this.IsGiven(genoInits[genoIdx].PotFleeceWt))
-                result.PotentialGFW = genoInits[genoIdx].PotFleeceWt;
-            if (this.IsGiven(genoInits[genoIdx].MaxFibreDiam))
-                result.MaxMicrons = genoInits[genoIdx].MaxFibreDiam;
-            if (this.IsGiven(genoInits[genoIdx].FleeceYield))
-                result.FleeceYield = genoInits[genoIdx].FleeceYield;
-            if (this.IsGiven(genoInits[genoIdx].PeakMilk))
-                result.PotMilkYield = genoInits[genoIdx].PeakMilk;
-            for (int weanerIdx = 0; weanerIdx <= 1; weanerIdx++)
-            {
-                // A zero death rate is permissible      
-                if (genoInits[genoIdx].DeathRate[weanerIdx] != StdMath.DMISSING)
-                    result.SetAnnualDeaths(weanerIdx == 1, genoInits[genoIdx].DeathRate[weanerIdx]);
-            }
-            if (this.IsGiven(genoInits[genoIdx].Conceptions[1]))
-                genoInits[genoIdx].Conceptions.CopyTo(result.Conceptions, 0);
-
-            return result;
         }
         
         /// <summary>
@@ -3993,6 +3676,7 @@ namespace Models.GrazPlan
                     numGroups = model.Count(); // get pre-split count of groups
                     for (param1 = 1; param1 <= numGroups; param1++)
                     {
+                        int groups = model.Count();
                         strParam = stockInfo.Type.ToLower();
                         value = stockInfo.Value;
                         tagNo = stockInfo.OtherTag;
@@ -4007,8 +3691,11 @@ namespace Models.GrazPlan
                             model.Split(param1, Convert.ToInt32(Math.Round(value), CultureInfo.InvariantCulture));
                         else
                             throw new Exception("Stock: invalid keyword (" + strParam + ") in \"split\" event");
-                        if ((tagNo > 0) && (model.Count() > numGroups))     // if a tag for any new group is given
-                            model.SetTag(model.Count(), tagNo);
+                        if ((tagNo > 0) && (model.Count() > groups))     // if a tag for any new group is given
+                        {
+                            for (int g = groups + 1; g <= model.Count(); g++)
+                                model.SetTag(g, tagNo);
+                        }
                     }
                 }
                 else if (stockEvent.GetType() == typeof(StockSplit))
@@ -4034,7 +3721,10 @@ namespace Models.GrazPlan
                     else
                         throw new Exception("Stock: invalid keyword (" + strParam + ") in \"split\" event");
                     if ((tagNo > 0) && (model.Count() > numGroups))     // if a tag for the new group is given
-                        model.SetTag(model.Count(), tagNo);
+                    {
+                        for (int g = numGroups + 1; g <= model.Count(); g++)
+                            model.SetTag(g, tagNo);
+                    }
                 }
                 else if (stockEvent.GetType() == typeof(StockTag))
                 {

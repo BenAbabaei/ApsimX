@@ -38,7 +38,24 @@ namespace Models.CLEM.Resources
         /// List of pools available
         /// </summary>
         [XmlIgnore]
-        public List<GrazeFoodStorePool> Pools = new List<GrazeFoodStorePool>();
+        public List<GrazeFoodStorePool> Pools =  new List<GrazeFoodStorePool>();
+
+        /// <summary>
+        /// Return the specified pool 
+        /// </summary>
+        /// <param name="index"></param>
+        /// <returns>GraxeFoodStore pool</returns>
+        public GrazeFoodStorePool Pool(int index)
+        {
+            if (index < Pools.Count())
+            {
+                return Pools[index];
+            }
+            else
+            {
+                return null;
+            }
+        } 
 
         /// <summary>
         /// Coefficient to convert initial N% to DMD%
@@ -458,7 +475,6 @@ namespace Models.CLEM.Resources
                     // expecting a GrazeFoodStoreResource (PastureManage) or FoodResourcePacket (CropManage) or Double from G-Range
                     throw new Exception(String.Format("ResourceAmount object of type {0} is not supported in Add method in {1}", resourceAmount.GetType().ToString(), this.Name));
             }
-            pool.Growth += pool.Amount;
             if (pool.Amount > 0)
             {
                 // allow decaying or no pools currently available
@@ -671,6 +687,7 @@ namespace Models.CLEM.Resources
         protected virtual void OnEcologicalIndicatorsCalculated(EventArgs e)
         {
             EcologicalIndicatorsCalculated?.Invoke(this, e);
+            CurrentEcologicalIndicators.Reset();
         }
 
         /// <summary>

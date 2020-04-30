@@ -1,8 +1,3 @@
-// -----------------------------------------------------------------------
-// <copyright file="TreeView.cs"  company="APSIM Initiative">
-//     Copyright (c) APSIM Initiative
-// </copyright>
-// -----------------------------------------------------------------------
 namespace UserInterface.Views
 {
     using APSIM.Shared.Utilities;
@@ -362,7 +357,7 @@ namespace UserInterface.Views
         private void RefreshNode(TreeIter node, TreeViewNode description)
         {
             Gdk.Pixbuf pixbuf = null;
-            if (MasterView.HasResource(description.ResourceNameForImage))
+            if (MasterView != null && MasterView.HasResource(description.ResourceNameForImage))
                 pixbuf = new Gdk.Pixbuf(null, description.ResourceNameForImage);
             string tick = description.Checked ? "✔" : "";
             treemodel.SetValues(node, description.Name, pixbuf, description.ToolTip, tick, description.Colour, description.Strikethrough);
@@ -495,12 +490,24 @@ namespace UserInterface.Views
                     if (selectionChangedData.NewNodePath != selectionChangedData.OldNodePath)
                         SelectedNodeChanged.Invoke(this, selectionChangedData);
                     previouslySelectedNodePath = selectionChangedData.NewNodePath;
-                    treeview1.CursorChanged += OnAfterSelect;
+                }
+                else
+                {
+                    // Presenter is ignoring the SelectedNodeChanged event.
+                    // We should scroll to the newly selected node so the user
+                    // can actually see what they've selected.
+                    treeview1.GetCursor(out TreePath path, out _);
+                    treeview1.ScrollToCell(path, null, false, 0, 1);
                 }
             }
             catch (Exception err)
             {
                 ShowError(err);
+            }
+            finally
+            {
+                if (SelectedNodeChanged != null && treeview1 != null)
+                    treeview1.CursorChanged += OnAfterSelect;
             }
         }
 

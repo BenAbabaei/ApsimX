@@ -29,7 +29,7 @@
         private MainMenu mainMenu;
 
         /// <summary>The context menu</summary>
-        private ContextMenu contextMenu;
+        public ContextMenu ContextMenu { get; private set; }
 
         /// <summary>Show tick on tree nodes where models will be included in auto-doc?</summary>
         private bool showDocumentationStatus;
@@ -127,8 +127,8 @@
             this.ApsimXFile = model as Simulations;
             this.view = view as IExplorerView;
             this.mainMenu = new MainMenu(this);
-            this.contextMenu = new ContextMenu(this);
-            ApsimXFile.Links.Resolve(contextMenu);
+            this.ContextMenu = new ContextMenu(this);
+            ApsimXFile.Links.Resolve(ContextMenu);
 
             this.view.Tree.SelectedNodeChanged += this.OnNodeSelected;
             this.view.Tree.DragStarted += this.OnDragStart;
@@ -178,7 +178,7 @@
                 (this.view as Views.ExplorerView).MainWidget.Destroy();
             }
 
-            this.contextMenu = null;
+            this.ContextMenu = null;
             this.mainMenu = null;
             this.CommandHistory.Clear();
             this.ApsimXFile.ClearSimulationReferences();
@@ -358,11 +358,12 @@
             // Get a complete list of all models in this file.
             List<IModel> allModels = Apsim.ChildrenRecursivelyVisible(this.ApsimXFile);
             allModels.Insert(0, ApsimXFile);
+
             /* If the current node path is '.Simulations' (the root node) then
                select the first item in the 'allModels' list. */
-            if (this.view.Tree.SelectedNode == string.Empty)
+            if (string.IsNullOrEmpty(view.Tree.SelectedNode))
             {
-                this.view.Tree.SelectedNode = Apsim.FullPath(allModels[0]);
+                view.Tree.SelectedNode = Apsim.FullPath(allModels[0]);
                 return true;
             }
 
@@ -433,15 +434,12 @@
         /// <summary>
         /// Adds a model to a parent model.
         /// </summary>
-        /// <param name="st">The string representation (JSON or XML) of a model.</param>
-        /// <param name="parentPath">Path to the parent</param>
-        public void Add(string st, string parentPath)
+        /// <param name="parentPath">Path to the parent.</param>
+        /// <param name="modelToAdd">The model to add to the tree.</param>
+        public void AddChildToTree(string parentPath, IModel modelToAdd)
         {
-            IModel model = FileFormat.ReadFromString<IModel>(st, out List<Exception> errors);
-            if (errors != null && errors.Count > 0)
-                throw errors[0];
-            AddModelCommand command = new AddModelCommand(parentPath, model, view, this);
-            CommandHistory.Add(command, true);
+            var nodeDescription = GetNodeDescription(modelToAdd);
+            view.Tree.AddChild(parentPath, nodeDescription);
         }
 
         /// <summary>
@@ -449,10 +447,9 @@
         /// </summary>
         /// <param name="child">The string representation (JSON or XML) of a model.</param>
         /// <param name="parentPath">Path to the parent</param>
-        public void Add(IModel child, string parentPath)
+        public void DeleteFromTree(string pathToNodeToDelete)
         {
-            AddModelCommand command = new AddModelCommand(parentPath, child, view, this);
-            CommandHistory.Add(command, true);
+            view.Tree.Delete(pathToNodeToDelete);
         }
 
         /// <summary>Deletes the specified model.</summary>
@@ -561,6 +558,18 @@
                         }
                     }
 
+                    if (ok && contextMenuAttr.Excluding != null && selectedModel != null)
+                    {
+                        ok = true;
+                        foreach (Type t in contextMenuAttr.Excluding)
+                        {
+                            if (t.IsAssignableFrom(selectedModel.GetType()))
+                            {
+                                ok = false;
+                            }
+                        }
+                    }
+
                     if (ok)
                     {
                         MenuDescriptionArgs desc = new MenuDescriptionArgs();
@@ -574,7 +583,7 @@
                         MethodInfo enableMethod = typeof(ContextMenu).GetMethod(method.Name + "Enabled");
                         if (enableMethod != null)
                         {
-                            desc.Enabled = (bool)enableMethod.Invoke(this.contextMenu, null);
+                            desc.Enabled = (bool)enableMethod.Invoke(this.ContextMenu, null);
                         }
                         else
                         {
@@ -585,14 +594,14 @@
                         MethodInfo checkMethod = typeof(ContextMenu).GetMethod(method.Name + "Checked");
                         if (checkMethod != null)
                         {
-                            desc.Checked = (bool)checkMethod.Invoke(this.contextMenu, null);
+                            desc.Checked = (bool)checkMethod.Invoke(this.ContextMenu, null);
                         }
                         else
                         {
                             desc.Checked = false;
                         }
 
-                        EventHandler handler = (EventHandler)Delegate.CreateDelegate(typeof(EventHandler), this.contextMenu, method);
+                        EventHandler handler = (EventHandler)Delegate.CreateDelegate(typeof(EventHandler), this.ContextMenu, method);
                         desc.OnClick = handler;
 
                         descriptions.Add(desc);
@@ -622,26 +631,27 @@
                     Action = FileDialog.FileActionType.SelectFolder
                 };
                 path = fileChooser.GetFile();
-                if (!string.IsNullOrEmpty(path))
+            }
+
+            if (!string.IsNullOrEmpty(path))
+            {
+                MainPresenter.ShowMessage("Generating simulation files: ", Simulation.MessageType.Information);
+
+                var runner = new Runner(model);
+                var errors = Models.Core.Run.GenerateApsimXFiles.Generate(runner, path, (int percent) =>
                 {
-                    MainPresenter.ShowMessage("Generating simulation files: ", Simulation.MessageType.Information);
+                    MainPresenter.ShowProgress(percent, false);
+                });
 
-                    var runner = new Runner(model);
-                    var errors = Models.Core.Run.GenerateApsimXFiles.Generate(runner, path, (int percent) => 
-                    {
-                        MainPresenter.ShowProgress(percent, false);
-                    });
-
-                    if (errors == null || errors.Count == 0)
-                    {
-                        MainPresenter.ShowMessage("Successfully generated .apsimx files under " + path + ".", Simulation.MessageType.Information);
-                        return true;
-                    }
-                    else
-                    {
-                        MainPresenter.ShowError(errors);
-                        return false;
-                    }
+                if (errors == null || errors.Count == 0)
+                {
+                    MainPresenter.ShowMessage("Successfully generated .apsimx files under " + path + ".", Simulation.MessageType.Information);
+                    return true;
+                }
+                else
+                {
+                    MainPresenter.ShowError(errors);
+                    return false;
                 }
             }
             return true;
@@ -669,40 +679,35 @@
         /// <summary>Display a view on the right hand panel in view.</summary>
         public void ShowRightHandPanel()
         {
-            try
+            if (this.view.Tree.SelectedNode != string.Empty)
             {
-                if (this.view.Tree.SelectedNode != string.Empty)
+                object model = Apsim.Get(this.ApsimXFile, this.view.Tree.SelectedNode);
+
+                if (model != null)
                 {
-                    object model = Apsim.Get(this.ApsimXFile, this.view.Tree.SelectedNode);
+                    ViewNameAttribute viewName = ReflectionUtilities.GetAttribute(model.GetType(), typeof(ViewNameAttribute), false) as ViewNameAttribute;
+                    PresenterNameAttribute presenterName = ReflectionUtilities.GetAttribute(model.GetType(), typeof(PresenterNameAttribute), false) as PresenterNameAttribute;
+                    DescriptionAttribute descriptionName = ReflectionUtilities.GetAttribute(model.GetType(), typeof(DescriptionAttribute), false) as DescriptionAttribute;
 
-                    if (model != null)
+                    if (descriptionName != null && model.GetType().Namespace.Contains("CLEM"))
                     {
-                        ViewNameAttribute viewName = ReflectionUtilities.GetAttribute(model.GetType(), typeof(ViewNameAttribute), false) as ViewNameAttribute;
-                        PresenterNameAttribute presenterName = ReflectionUtilities.GetAttribute(model.GetType(), typeof(PresenterNameAttribute), false) as PresenterNameAttribute;
-                        DescriptionAttribute descriptionName = ReflectionUtilities.GetAttribute(model.GetType(), typeof(DescriptionAttribute), false) as DescriptionAttribute;
-
-                        if (descriptionName != null)
-                        {
-                            viewName = new ViewNameAttribute("UserInterface.Views.ModelDetailsWrapperView");
-                            presenterName = new PresenterNameAttribute("UserInterface.Presenters.ModelDetailsWrapperPresenter");
-                        }
-
-                        if (viewName == null && presenterName == null)
-                        {
-                            viewName = new ViewNameAttribute("UserInterface.Views.HTMLView");
-                            presenterName = new PresenterNameAttribute("UserInterface.Presenters.GenericPresenter");
-                        }
-
-                        if (viewName != null && presenterName != null)
-                        {
-                            this.ShowInRightHandPanel(model, viewName.ToString(), presenterName.ToString());
-                        }
+                        viewName = new ViewNameAttribute("UserInterface.Views.ModelDetailsWrapperView");
+                        presenterName = new PresenterNameAttribute("UserInterface.Presenters.ModelDetailsWrapperPresenter");
                     }
+
+                    // if a clem model ignore the newly added description box that is handled by CLEM wrapper
+                    if (!model.GetType().Namespace.Contains("CLEM"))
+                    {
+                        ShowDescriptionInRightHandPanel(descriptionName?.ToString());
+                    }
+                    if (viewName != null && viewName.ToString().Contains(".glade"))
+                        ShowInRightHandPanel(model,
+                                             newView: new ViewBase(view as ViewBase, viewName.ToString()),
+                                             presenter: Assembly.GetExecutingAssembly().CreateInstance(presenterName.ToString()) as IPresenter);
+
+                    else if (viewName != null && presenterName != null)
+                        ShowInRightHandPanel(model, viewName.ToString(), presenterName.ToString());
                 }
-            }
-            catch (Exception err)
-            {
-                MainPresenter.ShowError(err);
             }
         }
 
@@ -728,34 +733,29 @@
                                  presenter: presenter);
         }
 
+        /// <summary>
+        /// Show a description in the right hand view.
+        /// </summary>
+        /// <param name="description">The description to show (Markdown).</param>
+        public void ShowDescriptionInRightHandPanel(string description)
+        {
+            view.AddDescriptionToRightHandView(description);
+        }
+
         /// <summary>Show a view in the right hand panel.</summary>
         /// <param name="model">The model.</param>
         /// <param name="newView">The view.</param>
         /// <param name="presenter">The presenter.</param>
         public void ShowInRightHandPanel(object model, ViewBase newView, IPresenter presenter)
         {
-            try
+            currentRightHandPresenter = presenter;
+            if (newView != null && currentRightHandPresenter != null)
             {
-                this.currentRightHandPresenter = presenter;
-                if (newView != null && this.currentRightHandPresenter != null)
-                {
-                    // Resolve links in presenter.
-                    ApsimXFile.Links.Resolve(currentRightHandPresenter);
-                    this.view.AddRightHandView(newView);
-                    this.currentRightHandPresenter.Attach(model, newView, this);
-                    this.CurrentRightHandView = newView as ViewBase;
-                }
-            }
-            catch (Exception err)
-            {
-                if (err is TargetInvocationException)
-                {
-                    err = (err as TargetInvocationException).InnerException;
-                }
-
-                string message = err.Message;
-                message += "\r\n" + err.StackTrace;
-                MainPresenter.ShowError(err);
+                // Resolve links in presenter.
+                ApsimXFile.Links.Resolve(currentRightHandPresenter);
+                view.AddRightHandView(newView);
+                currentRightHandPresenter.Attach(model, newView, this);
+                CurrentRightHandView = newView as ViewBase;
             }
         }
 
@@ -907,7 +907,10 @@
                     ICommand cmd = null;
                     if (e.Copied)
                     {
-                        this.Add(modelString, toParentPath);
+                        var command = new AddModelCommand(toParentPath,
+                                                          modelString,
+                                                          this);
+                        CommandHistory.Add(command, true);
                     }
                     else if (e.Moved)
                     {
@@ -1025,8 +1028,8 @@
         {
             TreeViewNode description = new TreeViewNode();
             description.Name = model.Name;
-
-            description.ResourceNameForImage = GetIconResourceName(model.GetType(), model.Name);
+            string resourceName = (model as ModelCollectionFromResource)?.ResourceName;
+            description.ResourceNameForImage = GetIconResourceName(model.GetType(), model.Name, resourceName);
 
             description.ToolTip = model.GetType().Name;
 
@@ -1054,38 +1057,40 @@
         /// </summary>
         /// <param name="modelType">The model type.</param>
         /// <param name="modelName">The model name.</param>
-        public static string GetIconResourceName(Type modelType, string modelName)
+        /// <param name="resourceName">Name of the model's resource file if one exists.null</param>
+        public static string GetIconResourceName(Type modelType, string modelName, string resourceName)
         {
             // We need to find an icon for this model. If the model is a ModelCollectionFromResource, we attempt to find 
-            // an image with the same name as the model.
+            // an image with the same resource name as the model (e.g. Wheat). If this fails, try the model type name.
             // Otherwise, we attempt to find an icon with the same name as the model's type.
             // e.g. A Graph called Biomass should use an icon called Graph.png
             // e.g. A Plant called Wheat should use an icon called Wheat.png
+            // e.g. A plant called Wheat with a resource name of Maize (don't do this) should use an icon called Maize.png.
 
             string resourceNameForImage;
-            if (modelType.GetInterface("ModelCollectionFromResource") != null && modelName != null)
-                resourceNameForImage = "ApsimNG.Resources.TreeViewImages." + modelName + ".png";
+            ManifestResourceInfo info = null;
+            if (typeof(ModelCollectionFromResource).IsAssignableFrom(modelType) && modelName != null)
+            {
+                resourceNameForImage = "ApsimNG.Resources.TreeViewImages." + resourceName + ".png";
+                info = Assembly.GetExecutingAssembly().GetManifestResourceInfo(resourceNameForImage);
+
+                // If there's no image for resource name (e.g. Wheat.png), try the model name (e.g. Plant.png)
+                if (info == null)
+                    resourceNameForImage = "ApsimNG.Resources.TreeViewImages." + modelType.Name + ".png";
+            }
             else
             {
                 string modelNamespace = modelType.FullName.Split('.')[1] + ".";
                 resourceNameForImage = "ApsimNG.Resources.TreeViewImages." + modelNamespace + modelType.Name + ".png";
 
-                if (!MainView.MasterView.HasResource(resourceNameForImage))
-                {
+                if (MainView.MasterView != null && !MainView.MasterView.HasResource(resourceNameForImage))
                     resourceNameForImage = "ApsimNG.Resources.TreeViewImages." + modelType.Name + ".png";
-                }
             }
 
             // Check to see if you can find the image in the resource for this project.
-            ManifestResourceInfo info = Assembly.GetExecutingAssembly().GetManifestResourceInfo(resourceNameForImage);
+            info = Assembly.GetExecutingAssembly().GetManifestResourceInfo(resourceNameForImage);
             if (info == null)
-            {
-                // Try the opposite.
-                if (modelType.GetInterface("ModelCollectionFromResource") != null && modelName != null)
-                    resourceNameForImage = "ApsimNG.Resources.TreeViewImages." + modelType.Name + ".png";
-                else
-                    resourceNameForImage = "ApsimNG.Resources.TreeViewImages." + modelName + ".png";
-            }
+                resourceNameForImage = "ApsimNG.Resources.TreeViewImages." + modelName + ".png";
 
             return resourceNameForImage;
         }

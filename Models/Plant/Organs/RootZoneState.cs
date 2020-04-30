@@ -6,6 +6,7 @@ using Models.Interfaces;
 using System.Linq;
 using Models.Soils.Standardiser;
 using APSIM.Shared.Utilities;
+using Models.PMF.Interfaces;
 
 namespace Models.PMF.Organs
 {
@@ -64,6 +65,10 @@ namespace Models.PMF.Organs
         /// <summary>Demand for Non-structural N, set when Ndemand is called and used again in N allocation</summary>
         [Units("g/m2")]
         public double[] StorageNDemand { get; set; }
+
+        /// <summary>Demand for Metabolic N, set when Ndemand is called and used again in N allocation</summary>
+        [Units("g/m2")]
+        public double[] MetabolicNDemand { get; set; }
 
         /// <summary>The Nuptake</summary>
         public double[] NitUptake { get; set; }
@@ -125,8 +130,8 @@ namespace Models.PMF.Organs
         /// <param name="rfv">Root front velocity</param>
         /// <param name="mrd">Maximum root depth</param>
         /// <param name="remobCost">Remobilisation cost</param>
-        public ZoneState(Plant Plant, Root Root, Soil soil, double depth, 
-                         double initialDM, double population, double maxNConc,
+        public ZoneState(Plant Plant, Root Root, Soil soil, double depth,
+                         BiomassDemand initialDM, double population, double maxNConc,
                          IFunction rfv, IFunction mrd, IFunction remobCost)
         {
             this.soil = soil;
@@ -151,29 +156,51 @@ namespace Models.PMF.Organs
         /// <param name="initialDM">Initial dry matter</param>
         /// <param name="population">plant population</param>
         /// <param name="maxNConc">maximum n concentration</param>
-        public void Initialise(double depth, double initialDM, double population, double maxNConc)
+        public void Initialise(double depth, BiomassDemand initialDM, double population, double maxNConc)
         {
             Depth = depth;
             RootFront = depth;
             //distribute root biomass evenly through root depth
             double[] fromLayer = new double[1] { depth };
-            double[] fromMass = new double[1] { initialDM };
-            double[] toMass = Layers.MapMass(fromMass, fromLayer, soil.Thickness);
+            double[] fromStructural = new double[1] { initialDM.Structural.Value() };
+            double[] toStructural = Layers.MapMass(fromStructural, fromLayer, soil.Thickness);
+            double[] fromMetabolic = new double[1] { initialDM.Metabolic.Value() };
+            double[] toMetabolic = Layers.MapMass(fromMetabolic, fromLayer, soil.Thickness);
+            double[] fromStorage = new double[1] { initialDM.Storage.Value() };
+            double[] toStorage = Layers.MapMass(fromStorage, fromLayer, soil.Thickness);
 
             for (int layer = 0; layer < soil.Thickness.Length; layer++)
             {
-                LayerLive[layer].StructuralWt = toMass[layer] * population;
+                LayerLive[layer].StructuralWt = toStructural[layer] * population;
+                LayerLive[layer].MetabolicWt = toMetabolic[layer] * population;
+                LayerLive[layer].StorageWt = toStorage[layer] * population;
                 LayerLive[layer].StructuralN = LayerLive[layer].StructuralWt * maxNConc;
             }
-            double mtomm = 1000.0;
-            if(plant.SowingData != null)
+
+            if (plant.SowingData != null)
             {
-                LeftDist = plant.SowingData.RowSpacing * mtomm * (plant.SowingData.SkipRow - 0.5);
-                RightDist = plant.SowingData.RowSpacing * mtomm * 0.5;
+                if (plant.SowingData.SkipType == 0)
+                {
+                    LeftDist = plant.SowingData.RowSpacing * 0.5;
+                    RightDist = plant.SowingData.RowSpacing * 0.5;
+                }
+                if (plant.SowingData.SkipType == 1)
+                {
+                    LeftDist = plant.SowingData.RowSpacing * 1.0;
+                    RightDist = plant.SowingData.RowSpacing * 1.0;
+                }
+                if (plant.SowingData.SkipType == 2)
+                {
+                    LeftDist = plant.SowingData.RowSpacing * 1.0;
+                    RightDist = plant.SowingData.RowSpacing * 0.5;
+                }
+                if (plant.SowingData.SkipType == 3)
+                {
+                    LeftDist = plant.SowingData.RowSpacing * 1.5;
+                    RightDist = plant.SowingData.RowSpacing * 0.5;
+                }
             }
-
         }
-
 
         /// <summary>Clears this instance.</summary>
         public void Clear()
@@ -215,17 +242,7 @@ namespace Models.PMF.Organs
             //sorghum calc
             var rootDepthWaterStress = 1.0;
             if (root.RootDepthStressFactor != null)
-            {
-                //calc StressFactorLookup   
-                var extractable = soil.SoilWater.ESW[RootLayer];
-                var llDep = soil.LL15[RootLayer] * soil.Thickness[RootLayer];
-                var capacity = soil.DULmm[RootLayer] - llDep;
-
-                root.SWAvailabilityRatio = MathUtilities.Divide(extractable, capacity, 10);
-                if (MathUtilities.FloatsAreEqual(extractable, 0))
-                    root.SWAvailabilityRatio = 0; // :(
-                rootDepthWaterStress = root.RootDepthStressFactor.Value();
-            }
+                rootDepthWaterStress = root.RootDepthStressFactor.Value(RootLayer);
 
             double MaxDepth;
             double[] xf = null;

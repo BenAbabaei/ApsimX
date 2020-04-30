@@ -333,6 +333,7 @@
         /// <summary>
         /// Extinction coefficient (dead).
         /// </summary>
+        [Description("Extinction coefficient for Dead Leaf")]
         public double KDead { get; set; }
 
         /// <summary>
@@ -344,6 +345,9 @@
         /// The dry matter supply.
         /// </summary>
         public BiomassSupplyType DMSupply { get; set; }
+
+        /// <summary>The dry matter demand</summary>
+        public BiomassPoolType DMDemandPriorityFactor { get; set; }
 
         /// <summary>
         /// The nitrogen supply.
@@ -837,6 +841,10 @@
             Dead = new Biomass();
             startLive = new Biomass();
             DMDemand = new BiomassPoolType();
+            DMDemandPriorityFactor = new BiomassPoolType();
+            DMDemandPriorityFactor.Structural = 1.0;
+            DMDemandPriorityFactor.Metabolic = 1.0;
+            DMDemandPriorityFactor.Storage = 1.0;
             NDemand = new BiomassPoolType();
             DMSupply = new BiomassSupplyType();
             NSupply = new BiomassSupplyType();
