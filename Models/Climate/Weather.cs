@@ -751,7 +751,9 @@
                 double B = Qmax / Q0;
                 double A = 0.6 / (B - 0.4);
                 double Tt = MathUtilities.Bound(readMetData.Radn / Q0, 0, 1);
+                if (Tt > B) Tt = B;
                 readMetData.DiffuseFraction = (1 - Math.Exp(0.6 * (1 - B / Tt) / (B - 0.4)));
+                if (Tt>0.5 && readMetData.DiffuseFraction<0.1) readMetData.DiffuseFraction = 0.1;
             }
             else
                 readMetData.DiffuseFraction = Convert.ToSingle(values[this.DiffuseFractionIndex], CultureInfo.InvariantCulture);
