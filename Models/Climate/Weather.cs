@@ -328,6 +328,7 @@
         /// <summary>
         /// Gets or sets the DF value found in weather file or zero if not specified
         /// </summary>
+        [Units("0-1")]
         [JsonIgnore]
         public double DiffuseFraction { get; set; }
 
@@ -554,6 +555,8 @@
                 this.CO2 = 350;
             if (AirPressure == 0)
                 this.AirPressure = 1010;
+            if (DiffuseFraction == 0)
+                this.DiffuseFraction = -1;
             if (reader != null)
             {
                 reader.Close();
